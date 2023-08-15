@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, User, Planets, Peoples, FavoritePlanet, FavoritePeople
 #from models import Person
 
 app = Flask(__name__)
@@ -44,6 +44,207 @@ def handle_hello():
     }
 
     return jsonify(response_body), 200
+
+
+# AQUI COMIENZAN LOS ENTPOINT PERSONALES 
+
+    # METODO GET PARA LISTAR LA INFORMACION DE LA BASE DE DATOS
+
+# ENDPOINT PARA LOS PERSONAJES
+
+@app.route('/people', methods=['GET'])
+def handle_peoples():
+    peoples = Peoples.query.all()
+    arr_peoples = list(map(
+        lambda character: character.serialize(), peoples
+    ))
+    
+    return jsonify(arr_peoples), 200
+
+@app.route('/people/<int:people_id>', methods=['GET'])
+def handle_a_single_chatacter(people_id):
+    character = Peoples.query.get(people_id)
+    return jsonify(character.serialize()), 200
+
+
+# ENDPOINT PARA LOS PLANETAS
+
+@app.route('/planets', methods=['GET'])
+def handle_planets():
+    planets = Planets.query.all()
+    arr_planets = list(map(
+        lambda planet: planet.serialize(), planets
+    ))
+
+    return jsonify(arr_planets), 200
+
+@app.route('/planets/<int:planet_id>', methods=['GET'])
+def handle_a_singular_planet(planet_id):
+    planet = Planets.query.get(planet_id)
+    return jsonify(planet.serialize()), 200
+
+
+# ENDPOINT PARA LOS USUARIOS
+
+@app.route('/users', methods=['GET'])
+def handle_users():
+    users = User.query.all()
+    arr_users = list(map(
+        lambda users: users.serialize(), users
+    ))
+    
+    return jsonify(arr_users), 200
+
+
+# ENDPOINT PARA LOS FAVORITOS
+
+@app.route('/users/favorites/<int:users_id>', methods=['GET'])
+def handle_user_favorites(users_id):
+
+    # Busco el usuario actual y sus favoritos correspondientes
+    
+    # PLANETA FAVORITO
+    planet_favorite = FavoritePlanet.query.filter_by(user_id = users_id)
+    planet = [planets.serialize() for planets in planet_favorite]
+
+    # PERSONAJE FAVORITO
+
+    people_favorite = FavoritePeople.query.filter_by(user_id = users_id)
+    character = [peoples.serialize() for peoples in people_favorite]
+
+
+    return jsonify("Favoritos", planet, character), 200
+
+
+# ENDPOINT PARA CREAR USUARIOS 
+
+@app.route('/create/user', methods=['POST'])
+def handle_create_user():
+    body = request.json
+    name = body.get("name")
+    email = body.get("email")
+    password = body.get("password")
+
+    # INSTANCIA DEL USUARIO
+
+    user = User(
+        name = name,
+        email = email, 
+        password = password
+    )
+
+    # GUARDAMOS EL USUARIO CREADO
+
+    try: 
+        db.session.add(user)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({
+            "message": "ocurrio un error interno",
+            "error": error.args
+        }), 500
+    return jsonify({}), 201
+    
+    
+# ENTPOINT PARA GUARDAR 
+
+@app.route('/favorite/planet/<int:planet_id>', methods=["POST"])
+def handle_add_favorite_planet(planet_id):
+
+    selected_planet = Planets.query.get(planet_id)
+    body = request.json
+    id_user = body.get("id_user")
+    user_actual = User.query.get(id_user)
+    
+    # INSTANCIA DEL PLANETA FAVORITO
+    
+    planet_favorite = FavoritePlanet(
+        user = user_actual,
+        planets = selected_planet
+    )
+
+    # GUARDAMOS EN BASE DE DATOS 
+
+    try: 
+        db.session.add(planet_favorite)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({
+            "message": "Ocurrio un error interno",
+            "error": error.args
+        })
+    return jsonify({}), 200
+
+# ENTPOINT PARA GUARDAR 
+
+@app.route('/favorite/people/<int:people_id>', methods=["POST"])
+def handle_add_favorite_people(people_id):
+
+    selected_people = Peoples.query.get(people_id)
+    body = request.json
+    id_user = body.get("id_user")
+    user_actual = User.query.get(id_user)
+    
+    # INSTANCIA DEL PLANETA FAVORITO
+    
+    people_favorite = FavoritePeople(
+        user = user_actual,
+        peoples = selected_people
+    )
+
+    print(people_favorite)
+    # GUARDAMOS EN BASE DE DATOS 
+    
+    try: 
+        db.session.add(people_favorite)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({
+            "message": "Ocurrio un error interno",
+            "error": error.args
+        })
+    return jsonify({}), 200 
+    
+
+# ENTPOINT PARA ELIMINAR
+
+@app.route('/favorite/planet/<int:planet_id>', methods=['DELETE'])
+def handle_delete_favorite_planet(planet_id):
+
+    delete_planet = FavoritePlanet.query.get(planet_id)
+
+    try: 
+        db.session.delete(delete_planet)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({
+            "message": "Ocurrio un error interno",
+            "error": error.args
+        })
+    return jsonify({}), 204
+
+
+@app.route('/favorite/people/<int:people_id>', methods=['DELETE'])
+def handle_delete_favorite_people(people_id):
+
+    delete_people = FavoritePeople.query.get(people_id)
+
+    try: 
+        db.session.delete(delete_people)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({
+            "message": "Ocurrio un error interno",
+            "error": error.args
+        })
+    return jsonify({}), 204
+
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
